@@ -1,0 +1,36 @@
+// Screenshot di controllo visivo (Chromium, emulazione mobile). Uso: node scripts/screenshots.mjs <cartella-output>
+import { createRequire } from 'node:module';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+const { chromium } = createRequire('/opt/npm-tools/node_modules/')('playwright');
+const out = process.argv[2] || '.';
+const srv = spawn('node', ['scripts/serve.mjs', '.', '8940'], { stdio: 'ignore' });
+await new Promise((r) => setTimeout(r, 800));
+const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'shot-')), { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, locale: 'it-IT', timezoneId: 'Europe/Rome' });
+const p = ctx.pages()[0];
+await p.addInitScript(() => { window.__load = async () => ({ repo: await import('/js/data/repo.js'), dates: await import('/js/lib/dates.js') }); });
+await p.goto('http://localhost:8940/');
+await p.getByRole('button', { name: 'Ho capito, inizia' }).waitFor();
+await p.screenshot({ path: join(out, '0-onboarding.png') });
+await p.getByRole('button', { name: 'Ho capito, inizia' }).click();
+await p.evaluate(async () => {
+  const { repo, dates } = await window.__load(); const t = dates.todayStr();
+  await repo.ensureDefaults();
+  await repo.create('tasks', { title: 'Pagare bollo auto', due: dates.addDays(t, -2), priority: 'high' });
+  await repo.create('tasks', { title: 'Revisione caldaia', due: t, recurrence: { freq: 'yearly', interval: 1 } });
+  await repo.create('tasks', { title: 'Sostituire filtri cappa', due: dates.addDays(t, 6) });
+  await repo.create('utilities', { name: 'Luce', provider: 'Enel Energia', nextDue: dates.addDays(t, 9), billingFrequency: 'bimonthly', amount: 96.4 });
+  await repo.create('maintenance', { title: 'Pulizia canna fumaria', kind: 'programmata', nextDue: dates.addDays(t, 20) });
+  const pr = await repo.create('practices', { title: 'Agevolazione ristrutturazione', kind: 'edilizia', entity: 'Agenzia delle Entrate', openedAt: t, status: 'open' });
+  await repo.addChecklistItem(pr.id, { text: 'Comunicazione ENEA', kind: 'step' }); await repo.addChecklistItem(pr.id, { text: 'Fatture e bonifici', kind: 'document' });
+  await repo.importDocument(new File(['%PDF'], 'Polizza incendio 2026.pdf', { type: 'application/pdf' }));
+});
+await p.reload(); await p.getByRole('heading', { name: 'Oggi', level: 1 }).waitFor(); await p.waitForTimeout(400);
+await p.screenshot({ path: join(out, '1-oggi.png') });
+await p.goto('http://localhost:8940/#/practices'); await p.getByText('Agevolazione ristrutturazione').click(); await p.waitForTimeout(400);
+await p.screenshot({ path: join(out, '2-pratica.png') });
+await p.goto('http://localhost:8940/#/archive'); await p.waitForTimeout(400); await p.screenshot({ path: join(out, '3-archivio.png') });
+await p.emulateMedia({ colorScheme: 'dark' }); await p.goto('http://localhost:8940/#/today'); await p.waitForTimeout(400); await p.screenshot({ path: join(out, '4-oggi-scuro.png') });
+await ctx.close(); srv.kill();
