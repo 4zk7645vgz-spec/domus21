@@ -4,6 +4,7 @@ import { STORE_OF, TYPE_LABEL } from '../data/schema.js';
 import { hrefOf, ICON_OF } from './common.js';
 import { pickFrom, confirmDialog, toast, showError, editEntity } from './kit.js';
 import { formatIT } from '../lib/dates.js';
+import { processDocument } from '../data/intel.js';
 
 export const titleOf = (r) => r.title || r.name || '(senza titolo)';
 export const subOf = (type, r) => ({ task: r.status === 'done' ? 'Completata' : r.due ? `Scadenza ${formatIT(r.due)}` : 'Senza scadenza', document: r.date ? formatIT(r.date) : '', practice: r.entity || '', contact: r.company || '', property: r.address || '', maintenance: r.nextDue ? `Prossima ${formatIT(r.nextDue)}` : '', utility: r.provider || '', contract: r.counterparty || '' }[type] || '');
@@ -16,16 +17,16 @@ export function pickAndImport({ links = [], onDone } = {}) {
     const files = [...input.files]; input.remove();
     let n = 0;
     for (const f of files) {
-      try { await repo.importDocument(f, { links }); n++; }
+      try { const doc = await repo.importDocument(f, { links }); n++; await processDocument(doc.id); }
       catch (e) {
         if (e.code === 'DUPLICATE') {
           const again = await confirmDialog({ title: 'File già presente', message: `${e.message}\nImportarlo comunque come nuovo documento?`, confirmLabel: 'Importa comunque' });
-          if (again) { try { await repo.importDocument(f, { links, allowDuplicate: true }); n++; } catch (e2) { showError(e2); } }
+          if (again) { try { const doc = await repo.importDocument(f, { links, allowDuplicate: true }); n++; await processDocument(doc.id); } catch (e2) { showError(e2); } }
           else if (links.length) { for (const l of links) await repo.link(l.type, l.id, 'document', e.existing.id).catch(() => {}); n++; toast('Documento esistente collegato.', 'ok'); }
         } else showError(e);
       }
     }
-    if (n) toast(`${n} documento/i salvato/i nella memoria interna di Domus (non ancora esportato in File).`, 'ok', 5000);
+    if (n) toast(`${n} documento/i salvato/i nella memoria interna di Domus (non ancora esportato in File). Apri il documento per verificare i dati letti.`, 'ok', 5000);
     onDone?.();
   });
   input.addEventListener('cancel', () => input.remove());

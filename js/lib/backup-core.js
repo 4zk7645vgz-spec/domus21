@@ -9,7 +9,9 @@ const enc = new TextEncoder(), dec = new TextDecoder('utf-8', { fatal: true });
 export const safeName = (n) => { const s = String(n || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim().slice(0, 120); return !s || s === '.' || s === '..' ? 'file' : s; };
 
 /** Migrazioni dei DATI di backup tra versioni di schema (oggi nessuna trasformazione necessaria: 1→2 è solo indicizzazione). */
-export const DATA_MIGRATIONS = { /* 2: (stores) => stores */ };
+// 3 (Domus 21): nuovi campi opzionali dei documenti. Nessuna trasformazione: i default (docKind 'nd', processing 'pending',
+// payState 'unknown') vengono applicati da sanitize() e i documenti importati risultano "in attesa di elaborazione".
+export const DATA_MIGRATIONS = { 3: (stores) => stores };
 export function migrateStores(stores, from) {
   for (let v = from + 1; v <= SCHEMA_VERSION; v++) if (DATA_MIGRATIONS[v]) stores = DATA_MIGRATIONS[v](stores);
   return stores;

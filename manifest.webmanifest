@@ -1,6 +1,6 @@
 {
-  "name": "Domus",
-  "short_name": "Domus",
+  "name": "Domus 21",
+  "short_name": "Domus 21",
   "description": "Gestionale personale per casa, pratiche e scadenze. Dati solo sul dispositivo.",
   "lang": "it",
   "start_url": "./",
@@ -8,8 +8,8 @@
   "id": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f5f4f0",
-  "theme_color": "#1d5c58",
+  "background_color": "#fdfdfb",
+  "theme_color": "#00782f",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

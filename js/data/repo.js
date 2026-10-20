@@ -97,7 +97,7 @@ export async function linksOf(type, id) {
 }
 
 // ---------- eliminazione con regole di integrità ----------
-const REFS = { propertyId: ['tasks', 'practices', 'maintenance', 'utilities', 'contracts'], contactId: ['maintenance'], categoryId: ['tasks', 'practices', 'documents'] };
+const REFS = { propertyId: ['tasks', 'practices', 'maintenance', 'utilities', 'contracts', 'documents'], contactId: ['maintenance'], categoryId: ['tasks', 'practices', 'documents'] };
 async function clearRefs(t, key, id) {
   for (const s of REFS[key]) for (const r of await t.all(s)) if (r[key] === id) { delete r[key]; r.updatedAt = nowIso(); await t.put(s, r); }
 }

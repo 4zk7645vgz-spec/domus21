@@ -8,6 +8,9 @@ import { writeZip } from '../lib/zip.js';
 import { formatIT, todayStr, addDays, cmp } from '../lib/dates.js';
 import { norm } from '../lib/search.js';
 import * as dirs from '../data/dirs.js';
+import { extractionPanel, PROC } from './intel-panel.js';
+import { labelOf } from './common.js';
+import { money } from './h.js';
 
 /** Stato e posizione effettiva del file: non dichiara mai "salvato in File" senza evidenza. */
 export function docStatus(d) {
@@ -27,6 +30,7 @@ export async function listView(_p, ctx) {
   const cats = new Map(snap.categories.map((c) => [c.id, c.name]));
   let docs = snap.documents.filter((d) => {
     const s = docStatus(d).key;
+    if (filter === 'review' && d.processing !== 'review') return false;
     if (filter === 'internal' && s !== 'internal') return false;
     if (filter === 'exported' && !['shared', 'verified'].includes(s)) return false;
     if (filter === 'issues' && !['missing', 'mismatch'].includes(s)) return false;
@@ -38,13 +42,13 @@ export async function listView(_p, ctx) {
   const input = h('input', { class: 'search-in', type: 'search', placeholder: 'Cerca nei documenti', value: q, 'aria-label': 'Cerca nei documenti', oninput: (e) => { q = e.target.value; clear(listBox); listBox.append(render()); } });
   const render = () => {
     const shown = docs.filter((d) => !q || norm(`${d.name} ${cats.get(d.categoryId) || ''} ${d.notes || ''}`).includes(norm(q)));
-    return shown.length ? card(shown.map((d) => { const st = docStatus(d); return row({ title: d.name, sub: [cats.get(d.categoryId), d.date ? formatIT(d.date) : '', fmtBytes(d.size)].filter(Boolean).join(' · '), badge: h('span', { class: `badge ${st.cls}` }, st.label), meta: d.expires ? `Scade ${dueText(d.expires, today)}` : '', metaClass: d.expires && d.expires < today ? 'due-over' : '', href: `#/archive/${d.id}` }); }))
+    return shown.length ? card(shown.map((d) => { const st = docStatus(d); return row({ title: d.name, sub: [d.docKind && d.docKind !== 'nd' ? labelOf('documents', 'docKind', d.docKind) : '', d.issuer, d.amount != null ? money(d.amount) : '', cats.get(d.categoryId), d.date ? formatIT(d.date) : ''].filter(Boolean).join(' · '), badge: d.processing === 'review' || d.processing === 'error' ? h('span', { class: `badge ${PROC[d.processing][1]}` }, PROC[d.processing][0]) : h('span', { class: `badge ${st.cls}` }, st.label), meta: d.expires ? `Scade ${dueText(d.expires, today)}` : '', metaClass: d.expires && d.expires < today ? 'due-over' : '', href: `#/archive/${d.id}` }); }))
       : empty('archive', snap.documents.length ? 'Nessun risultato' : 'Archivio vuoto', snap.documents.length ? 'Modifica la ricerca o il filtro.' : 'Importa i documenti (PDF, foto, scansioni) e collegali a pratiche, contratti o immobili.', snap.documents.length ? null : h('button', { class: 'btn primary', type: 'button', onclick: () => pickAndImport({ onDone: ctx.refresh }) }, 'Importa documento'));
   };
   listBox.append(render());
   const body = h('div', null,
     internal ? h('div', { class: 'banner info', role: 'note' }, icon('info', 20), h('div', null, h('b', null, `${internal} document${internal === 1 ? 'o è' : 'i sono'} solo nella memoria interna`), h('p', null, 'Non risultano in File. Esportali in una cartella "Domus" per averne una copia fuori dall\'app.'), h('button', { class: 'btn', type: 'button', onclick: () => exportAll(ctx, true) }, 'Esporta in File'))) : null,
-    input, chips([['all', 'Tutti'], ['internal', 'Solo PWA'], ['exported', 'Esportati'], ['issues', 'Problemi'], ['expiring', 'In scadenza']], filter, (k) => { filter = k; ctx.refresh(); }), listBox);
+    input, chips([['all', 'Tutti'], ['review', 'Da verificare'], ['internal', 'Solo PWA'], ['exported', 'Esportati'], ['issues', 'Problemi'], ['expiring', 'In scadenza']], filter, (k) => { filter = k; ctx.refresh(); }), listBox);
   return { title: 'Archivio', body, fab: { label: 'Importa documento', onclick: () => pickAndImport({ onDone: ctx.refresh }) }, actions: [h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Esporta tutti i documenti in un archivio ZIP', onclick: () => exportAll(ctx, false) }, icon('share'))] };
 }
 
@@ -107,9 +111,10 @@ export async function detailView([id], ctx) {
   } }, icon('check', 18), 'Verifica copia in File');
   const body = h('div', null,
     h('div', { class: `banner ${st.key === 'internal' ? '' : st.key === 'missing' || st.key === 'mismatch' ? 'danger' : 'info'}`, role: 'note' }, icon(st.key === 'verified' ? 'check' : 'info', 20), h('div', null, h('b', null, st.label), h('p', null, st.where))),
-    h('div', { class: 'card pad' }, kv([['Categoria', cat], ['Data', d.date ? formatIT(d.date) : ''], ['Scadenza', d.expires ? `${formatIT(d.expires)} · ${dueText(d.expires, today)}` : ''], ['Dimensione', fmtBytes(d.size)], ['Tipo', d.mime], ['Tag', tags], ['SHA-256', d.sha256 ? d.sha256.slice(0, 16) + '…' : ''], ['Note', d.notes]])),
+    h('div', { class: 'card pad' }, kv([['Tipologia', d.docKind && d.docKind !== 'nd' ? labelOf('documents', 'docKind', d.docKind) : ''], ['Emittente', d.issuer], ['N. documento', d.docNo], ['Importo', d.amount != null ? money(d.amount) : ''], ['Imponibile', d.amountNet != null ? money(d.amountNet) : ''], ['IVA', d.vatAmount != null ? money(d.vatAmount) : ''], ['Pagamento', labelOf('documents', 'payState', d.payState || 'unknown')], ['Immobile', snap.properties.find((x) => x.id === d.propertyId)?.name], ['Categoria', cat], ['Data', d.date ? formatIT(d.date) : ''], ['Scadenza', d.expires ? `${formatIT(d.expires)} · ${dueText(d.expires, today)}` : ''], ['Dimensione', fmtBytes(d.size)], ['Tipo', d.mime], ['Tag', tags], ['SHA-256', d.sha256 ? d.sha256.slice(0, 16) + '…' : ''], ['Note', d.notes]])),
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn', type: 'button', disabled: !d.hasBlob, onclick: async () => { const b = await repo.getDocumentBlob(id); if (b) preview(d, b); } }, icon('doc', 18), 'Apri'), save, verify),
+    extractionPanel(d, { snap, rels, ctx }),
     linkedDir ? h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => dirs.saveDoc(d).then((r) => { toast(r, 'ok'); ctx.refresh(); }).catch(showError) }, icon('archive', 18), `Salva nella cartella collegata${linkedDir.name ? ` (${linkedDir.name})` : ''}`)) : null,
     h('h2', { class: 'sec' }, h('span', null, 'Collegato a')),
     rels.length ? card(rels.map((l) => h('li', { class: 'with-act' }, h('a', { class: 'row', href: hrefOf(l.type, l.id) }, h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, l.rec.title || l.rec.name), h('span', { class: 'row-sub' }, l.type)))))) : h('p', { class: 'muted small' }, 'Non collegato a nessun elemento. Collegalo da pratiche, attività, immobili, utenze o contratti.'),

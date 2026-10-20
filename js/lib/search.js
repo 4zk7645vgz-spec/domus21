@@ -7,7 +7,7 @@ export function buildIndex(snap) {
   const tag = (r) => (r.tagIds || []).map((id) => snap.tags?.find((t) => t.id === id)?.name || '');
   for (const r of snap.tasks || []) add('task', r, r.title, r.status === 'done' ? 'Completata' : r.due || 'Senza scadenza', [r.description, r.notes, ...tag(r)]);
   for (const r of snap.practices || []) add('practice', r, r.title, r.entity || r.kind, [r.kind, r.entity, r.notes, r.references]);
-  for (const r of snap.documents || []) add('document', r, r.name, r.date || '', [r.notes, r.externalName, ...tag(r)]);
+  for (const r of snap.documents || []) add('document', r, r.name, [r.issuer, r.docNo, r.date].filter(Boolean).join(' · '), [r.notes, r.externalName, r.issuer, r.docNo, r.docKind, r.text, ...(r.fields || []).filter((f) => f.status !== 'rejected').map((f) => f.value), ...tag(r)]);
   for (const r of snap.contacts || []) add('contact', r, r.name, [r.role, r.company].filter(Boolean).join(' · '), [r.company, r.role, r.phone, r.email, r.notes]);
   for (const r of snap.contracts || []) add('contract', r, r.title, r.counterparty, [r.counterparty, r.kind, r.notes]);
   for (const r of snap.utilities || []) add('utility', r, r.name, r.provider, [r.provider, r.serviceType, r.reference, r.notes]);

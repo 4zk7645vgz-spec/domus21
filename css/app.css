@@ -1,6 +1,6 @@
 :root {
-  --bg: #f5f4f0; --surface: #ffffff; --surface2: #efeee9; --ink: #1c1f23; --muted: #62676e; --line: #e2e0d9;
-  --accent: #1d5c58; --accent-ink: #ffffff; --accent-soft: #dfeeec; --danger: #a9362c; --danger-soft: #f8e6e3;
+  --bg: #fafaf7; --surface: #ffffff; --surface2: #f0f0ea; --ink: #1c1f23; --muted: #62676e; --line: #e2e0d9;
+  --accent: #00782f; --accent-ink: #ffffff; --accent-soft: #def1e4; --lemon: #f0c000; --lemon-soft: #fbf1c2; --danger: #a9362c; --danger-soft: #f8e6e3;
   --warn: #8a5a0b; --warn-soft: #f8edd6; --ok: #2b6f47; --ok-soft: #e0f0e6;
   --shadow: 0 1px 2px rgba(20,24,28,.06), 0 4px 14px rgba(20,24,28,.05); --r: 14px;
   --tab-h: 56px; --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
@@ -9,7 +9,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #101213; --surface: #1a1d1f; --surface2: #23272a; --ink: #ecebe6; --muted: #a2a7ad; --line: #2c3033;
-    --accent: #6cc0b5; --accent-ink: #0c1413; --accent-soft: #1b3330; --danger: #ef8d82; --danger-soft: #3a1f1c;
+    --accent: #4cc982; --accent-ink: #07140c; --accent-soft: #16301f; --lemon: #f5cc1a; --lemon-soft: #3a3210; --danger: #ef8d82; --danger-soft: #3a1f1c;
     --warn: #e5b25c; --warn-soft: #3a2f17; --ok: #7ccb9a; --ok-soft: #1b3326; --shadow: 0 1px 2px rgba(0,0,0,.4);
   }
 }
@@ -24,7 +24,7 @@ main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4p
 main:focus { outline: none; }
 nav.tabs { position: fixed; bottom: 0; left: 0; right: 0; max-width: 720px; margin: 0 auto; display: flex; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding-bottom: var(--sab); z-index: 5; }
 nav.tabs a { flex: 1; min-height: var(--tab-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted); text-decoration: none; font-size: 11px; font-weight: 600; }
-nav.tabs a[aria-current="page"] { color: var(--accent); }
+nav.tabs a[aria-current="page"] { color: var(--accent); box-shadow: inset 0 3px 0 var(--lemon); }
 .icon-btn { width: 44px; height: 44px; border: 0; background: transparent; color: var(--accent); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .icon-btn:active, .row:active, .btn:active { opacity: .6; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
@@ -96,3 +96,13 @@ li.with-act { display: flex; align-items: center; } li.with-act > .row { flex: 1
 h3 { margin: 14px 0 4px; font-size: 16px; }
 a.btn { text-decoration: none; }
 .card.pad .field { margin-top: 14px; margin-bottom: 0; }
+/* Domus 21: dati estratti */
+li.fld { padding: 12px 14px; display: block; border-top: 1px solid var(--line); }
+li.fld:first-child { border-top: 0; }
+.fld-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.fld-label { font-weight: 600; font-size: 15px; }
+.fld-val { font-size: 19px; font-weight: 600; margin: 2px 0; overflow-wrap: anywhere; }
+.fld-snip { color: var(--muted); font-style: italic; overflow-wrap: anywhere; margin: 2px 0 6px; }
+details.hist { margin-top: 12px; } details.hist summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--accent); font-weight: 600; }
+.ask-answer { white-space: pre-line; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 15px; } .tbl th, .tbl td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); } .tbl td.n, .tbl th.n { text-align: right; font-variant-numeric: tabular-nums; }

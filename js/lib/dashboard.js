@@ -25,6 +25,8 @@ export function computeDashboard(snap, today) {
     payments: withDue(payments),
     maintenance: withDue(maint),
     docsExpiring: withDue(docsExpiring),
+    review: (snap.documents || []).filter((d) => d.processing === 'review'),
+    toPay: (snap.documents || []).filter((d) => d.payState === 'unpaid'),
     recentDocs: [...(snap.documents || [])].sort((a, b) => cmp(b.createdAt, a.createdAt)).slice(0, 5),
     counts: { tasks: open.length, practices: practices.length, documents: (snap.documents || []).length },
     isEmpty: !['tasks', 'practices', 'documents', 'properties', 'maintenance', 'utilities', 'contracts', 'contacts'].some((s) => (snap[s] || []).length),

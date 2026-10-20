@@ -10,6 +10,7 @@ import * as contacts from './ui/contacts.js';
 import * as search from './ui/search.js';
 import * as settings from './ui/settings.js';
 import * as more from './ui/more.js';
+import * as expenses from './ui/expenses.js';
 import { registerSW, setWaitingHandler, applyUpdate } from './app-sw.js';
 import { open as openDB } from './data/db.js';
 
@@ -22,6 +23,7 @@ const ROUTES = {
   home: { tab: 'more', view: (p, c) => (p[0] === 'property' ? house.propertyView(p.slice(1), c) : p[0] === 'maintenance' ? house.maintenanceView(p.slice(1), c) : house.listView(p, c)) },
   money: { tab: 'more', view: (p, c) => (p[0] ? money.detailView(p, c) : money.listView(p, c)) },
   contacts: { tab: 'more', view: (p, c) => (p[0] ? contacts.detailView(p, c) : contacts.listView(p, c)) },
+  expenses: { tab: 'more', view: expenses.view },
   settings: { tab: 'more', view: settings.view },
   search: { tab: 'today', view: search.view },
 };
@@ -55,7 +57,7 @@ async function render(keepScroll = false) {
   headerEl.append(h('h1', { class: v.small ? 'small' : '' }, v.title), ...(v.actions || []));
   if (!v.back && name !== 'search') headerEl.append(h('a', { class: 'icon-btn', href: '#/search', 'aria-label': 'Cerca' }, icon('search')));
   clear(main); main.append(v.body); main.scrollTop = scroll;
-  document.title = `${v.title} · Domus`;
+  document.title = `${v.title} · Domus 21`;
   for (const a of tabbar.querySelectorAll('a')) a.toggleAttribute('aria-current', false), a.getAttribute('data-tab') === route.tab && a.setAttribute('aria-current', 'page');
   fabEl?.remove(); fabEl = null;
   if (v.fab) { fabEl = h('button', { class: 'fab', type: 'button', 'aria-label': v.fab.label, onclick: v.fab.onclick }, icon('plus', 26)); root.append(fabEl); }

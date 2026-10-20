@@ -14,6 +14,10 @@ export const PRIORITIES = opts(['low', 'Bassa'], ['normal', 'Normale'], ['high',
 export const FREQ_BILL = opts(['none', 'Una tantum / nessuna'], ['monthly', 'Mensile'], ['bimonthly', 'Bimestrale'], ['quarterly', 'Trimestrale'], ['semiannual', 'Semestrale'], ['yearly', 'Annuale']);
 export const BILL_MONTHS = { monthly: 1, bimonthly: 2, quarterly: 3, semiannual: 6, yearly: 12 };
 export const PRACTICE_STATUS = opts(['open', 'Aperta'], ['waiting', 'In attesa'], ['closed', 'Conclusa'], ['archived', 'Archiviata']);
+export const DOC_KINDS = opts(['nd', 'Non classificato'], ['fattura', 'Fattura'], ['ricevuta', 'Ricevuta / scontrino'], ['preventivo', 'Preventivo'], ['contratto', 'Contratto'], ['polizza', 'Polizza assicurativa'], ['bolletta', 'Bolletta / utenza'], ['garanzia', 'Garanzia'], ['manuale', 'Manuale'], ['certificato', 'Certificato / dichiarazione'], ['altro', 'Altro']);
+export const PROCESSING = opts(['pending', 'In attesa'], ['processing', 'In elaborazione'], ['review', 'Da verificare'], ['done', 'Elaborato'], ['error', 'Errore']);
+export const PAY_STATES = opts(['unknown', 'Non verificato'], ['unpaid', 'Da pagare'], ['paid', 'Pagato']);
+export const FIELD_STATUS = ['proposed', 'confirmed', 'corrected', 'rejected'];
 export const EXPORT_STATES = ['none', 'shared', 'verified', 'mismatch'];
 
 export const SCHEMA = {
@@ -71,6 +75,22 @@ export const SCHEMA = {
     F('externalName', 'str', 'Nome file in File', { hidden: true }),
     F('dirName', 'str', 'Cartella collegata', { hidden: true }),
     F('notes', 'text', 'Note'),
+    // --- Domus 21: dati documentali (compilati solo da estrazione CONFERMATA o inserimento manuale) ---
+    F('docKind', 'enum', 'Tipologia documento', { values: DOC_KINDS, def: 'nd' }),
+    F('issuer', 'str', 'Emittente / fornitore'),
+    F('docNo', 'str', 'Numero documento'),
+    F('amount', 'num', 'Importo totale (€)'),
+    F('amountNet', 'num', 'Imponibile (€)'),
+    F('vatAmount', 'num', 'IVA (€)'),
+    F('payState', 'enum', 'Pagamento', { values: PAY_STATES, def: 'unknown' }),
+    F('propertyId', 'id', 'Immobile', { ref: 'properties' }),
+    F('processing', 'enum', 'Elaborazione', { values: PROCESSING, def: 'pending', hidden: true }),
+    F('procError', 'str', 'Errore di elaborazione', { hidden: true }),
+    F('extractedAt', 'iso', 'Elaborato il', { hidden: true }),
+    F('textSource', 'str', 'Origine del testo', { hidden: true }),
+    F('text', 'text', 'Testo estratto', { hidden: true }),
+    F('fields', 'fields', 'Dati estratti', { hidden: true }),
+    F('history', 'hist', 'Storico modifiche', { hidden: true }),
   ],
   properties: [
     F('name', 'str', 'Nome', { req: true }),
@@ -172,6 +192,16 @@ function coerce(f, v) {
       const out = { freq: v.freq, interval };
       if (v.anchorDay != null) { if (!Number.isInteger(v.anchorDay) || v.anchorDay < 1 || v.anchorDay > 31) return [, 'giorno non valido']; out.anchorDay = v.anchorDay; }
       if (v.until != null && v.until !== '') { if (!isDate(v.until)) return [, 'data fine ricorrenza non valida']; out.until = v.until; }
+      return [out];
+    }
+    case 'fields': {
+      if (!Array.isArray(v) || v.length > 80) return [, 'dati estratti non validi'];
+      const out = [];
+      for (const e of v) {
+        if (typeof e !== 'object' || !e || !isStr(e.key) || e.key.length > 40 || !isStr(e.label) || e.label.length > 80 || !isStr(e.value) || e.value.length > 300) return [, 'dato estratto non valido'];
+        if (!FIELD_STATUS.includes(e.status) || !['extracted', 'calculated', 'inferred', 'manual'].includes(e.kind) || !['high', 'medium', 'low'].includes(e.conf)) return [, 'dato estratto non valido'];
+        out.push({ key: e.key, label: e.label, value: e.value, status: e.status, kind: e.kind, conf: e.conf, snippet: isStr(e.snippet) ? e.snippet.slice(0, 200) : '', ...(isStr(e.original) && e.original ? { original: e.original.slice(0, 300) } : {}) });
+      }
       return [out];
     }
     case 'hist': {

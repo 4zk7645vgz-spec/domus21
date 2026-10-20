@@ -23,7 +23,7 @@ export function checkIntegrity(snap, blobIds = new Set()) {
   const catIds = new Set((snap.categories || []).map((c) => c.id));
   const refCheck = (store, key, set, label) => { for (const r of snap[store] || []) if (r[key] && !set.has(r[key])) add('warn', `${label} inesistente in "${r.title || r.name}"`, { op: 'unset', store, id: r.id, key }); };
   for (const s of ['tasks', 'practices', 'documents']) refCheck(s, 'categoryId', catIds, 'Categoria');
-  for (const s of ['tasks', 'practices', 'maintenance', 'utilities', 'contracts']) refCheck(s, 'propertyId', ids.property, 'Immobile');
+  for (const s of ['tasks', 'practices', 'maintenance', 'utilities', 'contracts', 'documents']) refCheck(s, 'propertyId', ids.property, 'Immobile');
   refCheck('maintenance', 'contactId', ids.contact, 'Contatto');
 
   for (const d of snap.documents || []) {

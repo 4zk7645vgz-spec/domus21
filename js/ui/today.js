@@ -36,7 +36,7 @@ export async function onboarding(ctx) {
     persistState.textContent = ok ? 'Archiviazione persistente concessa dal sistema.' : 'Il sistema non ha concesso l\'archiviazione persistente (non garantita): fai backup frequenti.';
   } }, 'Richiedi archiviazione persistente');
   const done = h('button', { class: 'btn primary', type: 'button', onclick: async () => { await repo.setMeta('setupDone', true); s.close(); ctx.refresh(); } }, 'Ho capito, inizia');
-  const s = openSheet({ title: 'Benvenuto in Domus', body, footer: [ask, done], tall: true });
+  const s = openSheet({ title: 'Benvenuto in Domus 21', body, footer: [ask, done], tall: true });
 }
 
 export async function view(_p, ctx) {
@@ -55,6 +55,8 @@ export async function view(_p, ctx) {
   if (d.upcoming.length) parts.push(section('Prossimi 14 giorni', ['Tutte', '#/tasks'], taskList(d.upcoming)));
   if (d.payments.length) parts.push(section('Pagamenti e rinnovi', ['Vedi', '#/money'], card(d.payments.map((p) => row({ title: p.title, sub: [p.sub, p.amount != null && !p.renewal ? money(p.amount) : ''].filter(Boolean).join(' · '), meta: dueText(p.due, today), metaClass: p.days < 0 ? 'due-over' : '', href: hrefOf(p.type, p.id) })))));
   if (d.maintenance.length) parts.push(section('Manutenzioni programmate', ['Vedi', '#/home'], card(d.maintenance.map((m) => row({ title: m.title, meta: dueText(m.due, today), metaClass: m.days < 0 ? 'due-over' : '', href: hrefOf('maintenance', m.id) })))));
+  if (d.review.length) parts.push(section(`Documenti da verificare (${d.review.length})`, ['Archivio', '#/archive'], card(d.review.slice(0, 5).map((x) => row({ title: x.name, sub: `${x.fields.filter((f) => f.status === 'proposed').length} dati proposti da confermare`, href: hrefOf('document', x.id) })))));
+  if (d.toPay.length) parts.push(section(`Documenti da pagare (${d.toPay.length})`, ['Spese', '#/expenses'], card(d.toPay.slice(0, 5).map((x) => row({ title: x.name, sub: [x.issuer, x.amount != null ? money(x.amount) : 'importo non confermato'].filter(Boolean).join(' · '), meta: x.expires ? dueText(x.expires, today) : '', metaClass: x.expires && x.expires < today ? 'due-over' : '', href: hrefOf('document', x.id) })))));
   if (d.practices.length) parts.push(section(`Pratiche aperte (${d.practices.length})`, ['Tutte', '#/practices'], card(d.practices.slice(0, 4).map((p) => row({ title: p.title, sub: p.entity, meta: p.status === 'waiting' ? 'In attesa' : '', href: hrefOf('practice', p.id) })))));
   if (d.docsExpiring.length) parts.push(section('Documenti in scadenza', ['Archivio', '#/archive'], card(d.docsExpiring.map((x) => row({ title: x.title, meta: dueText(x.due, today), metaClass: x.days < 0 ? 'due-over' : '', href: hrefOf('document', x.id) })))));
   if (d.recentDocs.length) parts.push(section('Documenti recenti', ['Archivio', '#/archive'], card(d.recentDocs.map((x) => row({ title: x.name, sub: x.date ? formatIT(x.date) : '', href: hrefOf('document', x.id) })))));
