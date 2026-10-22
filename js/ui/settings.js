@@ -9,6 +9,7 @@ import { checkIntegrity } from '../lib/integrity.js';
 import { deliver } from '../lib/deliver.js';
 import { buildICS } from '../lib/ics.js';
 import { todayStr, formatIT, diffDays, addDays, cmp } from '../lib/dates.js';
+import { processDocument } from '../data/intel.js';
 import { APP_VERSION, SCHEMA_VERSION, BACKUP_FORMAT_VERSION } from '../version.js';
 import { STORES } from '../data/schema.js';
 import { checkForUpdate, swState } from '../app-sw.js';
@@ -125,6 +126,10 @@ export async function view(_p, ctx) {
     sec('Spazio e conservazione'),
     h('div', { class: 'card pad' }, kv([['Usato', est ? `${fmtBytes(est.usage)} di ${fmtBytes(est.quota)} (stima del browser)` : 'non disponibile'], ['Archiviazione persistente', persisted === null ? 'non supportata' : persisted ? 'Concessa' : 'Non concessa (iOS può eliminare i dati se manca spazio)'], ['Documenti nella PWA', `${snap.documents.filter((d) => d.hasBlob).length} (${fmtBytes(snap.documents.reduce((s, d) => s + (d.hasBlob ? d.size || 0 : 0), 0))})`]])),
     navigator.storage?.persist && !persisted ? h('div', { class: 'btn-row' }, btn('Richiedi archiviazione persistente', async () => { const ok = await navigator.storage.persist(); toast(ok ? 'Concessa' : 'Non concessa dal sistema: fai backup frequenti.', ok ? 'ok' : 'info'); ctx.refresh(); })) : null,
+    sec('Lettura automatica dei documenti'),
+    h('div', { class: 'card pad' }, h('div', { class: 'field check' }, h('input', { type: 'checkbox', id: 'autoconf', checked: !!(await repo.getMeta('autoConfirm')), onchange: async (e) => { await repo.setMeta('autoConfirm', e.target.checked); toast(e.target.checked ? 'Conferma automatica attiva: solo dati letti con alta affidabilità e senza incoerenze.' : 'Conferma automatica disattivata: confermi tu ogni dato.', 'ok', 5000); } }), h('label', { for: 'autoconf' }, 'Conferma automatica dei dati ad alta affidabilità')),
+      h('p', { class: 'small muted' }, 'Per i documenti nuovi: date, importi e numeri letti da etichette chiare (es. "Totale da pagare") vengono confermati da soli se il documento non ha incoerenze. Resta tutto nello storico e puoi sempre riportare un dato a "da verificare". Spenta, confermi tu.')),
+    h('div', { class: 'btn-row' }, btn('Rileggi tutti i documenti', async () => { const r = await upgradeAll(); toast(`Riletti ${r.docs} documenti: ${r.added} nuovi dati da verificare. Le conferme non cambiano.`, 'ok', 6000); ctx.refresh(); }, '', 'repeat')),
     sec('Organizzazione'),
     card([row({ title: 'Categorie', sub: `${snap.categories.length} categorie`, onclick: () => categoriesSheet(ctx) }), row({ title: 'Esporta scadenze in Calendario', sub: 'File .ics, azione manuale', onclick: exportCalendar }), row({ title: 'Verifica integrità dei dati', sub: 'Collegamenti, file, ricorrenze', onclick: () => integrityFlow(ctx) })]),
     sec('Promemoria'),
@@ -136,4 +141,12 @@ export async function view(_p, ctx) {
     snap.audit.length ? h('div', { class: 'card pad small' }, h('b', null, 'Registro attività locale'), [...snap.audit].sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 8).map((a) => h('div', null, `${a.at.slice(0, 16).replace('T', ' ')} · ${a.summary}`))) : null,
     h('div', { class: 'banner info' }, icon('shield', 20), h('div', null, h('b', null, 'Privacy e sicurezza'), h('p', null, 'I dati restano su questo dispositivo e non vengono mai inviati a un server. Domus non ha blocco con PIN: chiunque abbia accesso al telefono sbloccato può aprire l\'app. Usa il codice di blocco di iOS.'))));
   return { title: 'Impostazioni', body, back: '#/more' };
+}
+
+/** Rielabora tutti i documenti leggibili (additivo: non cambia ciò che hai confermato, corretto o rifiutato). */
+async function upgradeAll() {
+  const docs = (await repo.snapshot()).documents.filter((d) => d.text || d.mime === 'application/pdf' || (d.mime || '').startsWith('text/'));
+  let added = 0;
+  for (const d of docs) { const before = (d.fields || []).filter((f) => f.status === 'proposed').length; const r = await processDocument(d.id); if (r) added += Math.max(0, (r.fields || []).filter((f) => f.status === 'proposed').length - before); }
+  return { docs: docs.length, added };
 }

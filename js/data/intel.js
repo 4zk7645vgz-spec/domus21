@@ -3,11 +3,14 @@
 // i dati confermati non vengono sovrascritti da nuove elaborazioni; ogni passaggio rilevante finisce nello storico.
 import * as repo from './repo.js';
 import { DomusError } from './db.js';
-import { extractFields, mergeFields, topLevelPatch, processingOf, findRelated } from '../lib/extract.js';
+import { extractFields, mergeFields, topLevelPatch, processingOf, findRelated, EXTRACTOR_VERSION } from '../lib/extract.js';
+import { buildProposals } from '../lib/proposals.js';
+import { STORE_OF } from './schema.js';
 import { pdfToText } from '../lib/pdftext.js';
-import { isDate, formatIT } from '../lib/dates.js';
+import { isDate, formatIT, todayStr } from '../lib/dates.js';
 
 export const MAX_TEXT = 8000;
+const AUTO_KEYS = ['issuer', 'docNo', 'date', 'amount', 'amountNet', 'vatAmount'];
 const nowIso = () => new Date().toISOString();
 const AMOUNT_KEYS = ['amount', 'amountNet', 'vatAmount'];
 const eur = (v) => `€ ${Number(v).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -50,11 +53,27 @@ export async function processDocument(id, { text, source } = {}) {
     }
     const snap = await repo.snapshot();
     const ex = extractFields(t, { properties: snap.properties });
-    const merged = mergeFields(doc.fields || [], ex.fields);
+    const merged = mergeFields(doc.fields || [], ex.fields).map((f) => ({ ...f }));
+    const patch = {}; const notes = [];
+    // categoria: è organizzativa, non un fatto → assegnata subito se manca (modificabile in ogni momento)
+    const cat = merged.find((f) => f.key === 'categoryId' && f.status === 'proposed');
+    if (cat && !doc.categoryId) { const p = topLevelPatch(cat, [], snap.categories); if (p.categoryId) { cat.status = 'confirmed'; Object.assign(patch, p); notes.push(`categoria "${cat.value}" assegnata automaticamente`); } }
+    // conferma automatica (opzione dell'utente, spenta di default): solo dati letti con alta affidabilità, senza avvisi di incoerenza,
+    // senza sostituire valori già presenti. Resta traccia nello storico e ogni dato è riportabile a "da verificare".
+    if ((await repo.getMeta('autoConfirm')) && !ex.warnings.length) {
+      let n = 0;
+      for (const f of merged) {
+        if (f.status !== 'proposed' || f.conf !== 'high' || f.kind !== 'extracted' || !AUTO_KEYS.includes(f.key)) continue;
+        const p = topLevelPatch(f, [], []); const k = Object.keys(p)[0];
+        if (k && doc[k] != null && doc[k] !== '' && String(doc[k]) !== String(p[k])) continue;
+        f.status = 'confirmed'; Object.assign(patch, p); n++;
+      }
+      if (n) notes.push(`${n} dati confermati automaticamente (alta affidabilità)`);
+    }
     const proposed = merged.filter((f) => f.status === 'proposed').length;
     return await repo.update('documents', id, {
-      text: t.slice(0, MAX_TEXT), textSource: src, fields: merged, processing: processingOf(merged), procError: '', extractedAt: nowIso(),
-      history: hist(doc, `Elaborazione (${src}): ${proposed} dat${proposed === 1 ? 'o proposto' : 'i proposti'}${t.length > MAX_TEXT ? `; testo salvato troncato a ${MAX_TEXT} caratteri` : ''}`),
+      ...patch, text: t.slice(0, MAX_TEXT), textSource: src, fields: merged, processing: processingOf(merged), procError: '', extractedAt: nowIso(),
+      history: hist(doc, `Elaborazione (${src}): ${proposed} dat${proposed === 1 ? 'o proposto' : 'i proposti'}${notes.length ? `; ${notes.join('; ')}` : ''}${t.length > MAX_TEXT ? `; testo salvato troncato a ${MAX_TEXT} caratteri` : ''}`),
     });
   } catch (e) {
     try { await repo.update('documents', id, { processing: 'error', procError: String(e.message || e).slice(0, 280) }); } catch { /* il file originale resta comunque intatto */ }
@@ -87,7 +106,7 @@ export async function reviewField(id, key, action, newValue) {
   } else if (action === 'reject') { f.status = 'rejected'; entry = `Rifiutato ${label}: ${display(f)}`; }
   else if (action === 'reset') { f.status = 'proposed'; entry = `Riportato a proposto: ${label}`; }
   else throw new DomusError('VALIDATION', 'Azione non valida.');
-  if (action === 'confirm' || action === 'correct') patch = topLevelPatch(f, (await repo.snapshot()).properties);
+  if (action === 'confirm' || action === 'correct') { const s = await repo.snapshot(); patch = topLevelPatch(f, s.properties, s.categories); }
   return repo.update('documents', id, { ...patch, fields, processing: processingOf(fields), history: hist(doc, entry) });
 }
 
@@ -128,3 +147,37 @@ export async function createWarranty(docId) {
 }
 
 export { findRelated };
+
+/** Esegue una proposta (creazione o collegamento) scelta dall'utente. Idempotente: se non è più valida, non fa nulla. */
+export async function applyProposal(docId, proposalId) {
+  const [doc, snap] = await Promise.all([repo.get('documents', docId), repo.snapshot()]);
+  if (!doc) throw new DomusError('NOT_FOUND', 'Documento non trovato.');
+  const p = buildProposals(doc, snap, todayStr()).find((x) => x.id === proposalId);
+  if (!p) throw new DomusError('NOT_FOUND', 'Proposta non più disponibile (forse già applicata).');
+  let id = p.existingId;
+  if (p.action === 'create') { const data = Object.fromEntries(Object.entries(p.data).filter(([, v]) => v !== undefined && v !== '')); id = (await repo.create(STORE_OF[p.type], data)).id; }
+  await repo.link('document', docId, p.type, id);
+  await repo.update('documents', docId, { history: hist(doc, p.action === 'create' ? `Creato dal documento: ${p.title}` : `Collegato: ${p.title}`) });
+  return { type: p.type, id, created: p.action === 'create', title: p.title };
+}
+
+/**
+ * Dopo un aggiornamento con regole di lettura migliorate rielabora i documenti già caricati, UNA volta per versione delle regole.
+ * È solo additivo: i dati confermati, corretti o rifiutati non cambiano; compaiono solo dati nuovi, da verificare.
+ */
+export async function upgradeDocuments() {
+  const v = (await repo.getMeta('extractorVersion')) || 0;
+  if (v >= EXTRACTOR_VERSION) return null;
+  const docs = (await repo.snapshot()).documents.filter((d) => d.text || d.mime === 'application/pdf' || (d.mime || '').startsWith('text/'));
+  let touched = 0, added = 0;
+  for (const d of docs) {
+    const before = (d.fields || []).filter((f) => f.status === 'proposed').length;
+    const r = await processDocument(d.id);
+    if (!r) continue;
+    const after = (r.fields || []).filter((f) => f.status === 'proposed').length;
+    if (after > before) { touched++; added += after - before; }
+  }
+  await repo.setMeta('extractorVersion', EXTRACTOR_VERSION);
+  await repo.audit('upgrade', `Rielaborazione automatica (regole v${EXTRACTOR_VERSION}): ${docs.length} documenti, ${added} nuovi dati proposti`);
+  return { docs: docs.length, touched, added };
+}

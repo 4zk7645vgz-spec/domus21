@@ -1,14 +1,14 @@
 // Service Worker di Domus: SOLO risorse statiche dell'app. Non tocca mai IndexedDB né i dati personali.
 // La versione deve coincidere con APP_VERSION (js/version.js) — controllato da scripts/check-precache.mjs.
-const CACHE_VERSION = '1.1.0';
+const CACHE_VERSION = '1.2.0';
 const CACHE = `domus-shell-${CACHE_VERSION}`;
 const PRECACHE = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
   'js/app.js', 'js/app-sw.js', 'js/version.js',
-  'js/lib/ask.js', 'js/lib/backup-core.js', 'js/lib/dashboard.js', 'js/lib/dates.js', 'js/lib/deliver.js', 'js/lib/expenses.js', 'js/lib/extract.js', 'js/lib/hash.js', 'js/lib/ics.js', 'js/lib/integrity.js', 'js/lib/pdftext.js', 'js/lib/recurrence.js', 'js/lib/search.js', 'js/lib/zip.js',
+  'js/lib/ask.js', 'js/lib/inbox.js', 'js/lib/proposals.js', 'js/lib/stats.js', 'js/lib/suppliers.js', 'js/lib/backup-core.js', 'js/lib/dashboard.js', 'js/lib/dates.js', 'js/lib/deliver.js', 'js/lib/expenses.js', 'js/lib/extract.js', 'js/lib/hash.js', 'js/lib/ics.js', 'js/lib/integrity.js', 'js/lib/pdftext.js', 'js/lib/recurrence.js', 'js/lib/search.js', 'js/lib/zip.js',
   'js/data/backup-io.js', 'js/data/db.js', 'js/data/dirs.js', 'js/data/intel.js', 'js/data/migrations.js', 'js/data/repo.js', 'js/data/schema.js',
-  'js/ui/archive.js', 'js/ui/common.js', 'js/ui/contacts.js', 'js/ui/expenses.js', 'js/ui/h.js', 'js/ui/intel-panel.js', 'js/ui/house.js', 'js/ui/kit.js', 'js/ui/links.js', 'js/ui/money.js', 'js/ui/more.js', 'js/ui/practices.js', 'js/ui/prompt.js', 'js/ui/search.js', 'js/ui/settings.js', 'js/ui/tasks.js', 'js/ui/today.js',
+  'js/ui/archive.js', 'js/ui/calendar.js', 'js/ui/charts.js', 'js/ui/inbox.js', 'js/ui/suppliers.js', 'js/ui/widgets.js', 'js/ui/common.js', 'js/ui/contacts.js', 'js/ui/expenses.js', 'js/ui/h.js', 'js/ui/intel-panel.js', 'js/ui/house.js', 'js/ui/kit.js', 'js/ui/links.js', 'js/ui/money.js', 'js/ui/more.js', 'js/ui/practices.js', 'js/ui/prompt.js', 'js/ui/search.js', 'js/ui/settings.js', 'js/ui/tasks.js', 'js/ui/today.js',
 ];
 
 self.addEventListener('install', (event) => {

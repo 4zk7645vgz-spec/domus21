@@ -57,9 +57,28 @@ const KIND_RULES = {
   bolletta: [['bolletta', 3], ['pod', 1.5], ['pdr', 1.5], ['kwh', 1.5], ['smc', 1.5], ['periodo di fatturazione', 1.5], ['servizio idrico', 2], ['consumo', 0.8]],
   garanzia: [['certificato di garanzia', 4], ['garanzia', 2], ['periodo di garanzia', 2]],
   manuale: [['manuale', 3], ['istruzioni per l uso', 3], ['istruzioni', 1.5], ['avvertenze', 1.5]],
+  tributo: [['modello f24', 4], ['f24', 2.5], ['imu', 3], ['tari', 3], ['tassa rifiuti', 3], ['agenzia delle entrate', 1.5], ['bollo auto', 3], ['tributo', 1.5], ['codice tributo', 3]],
+  condominio: [['condominio', 2.5], ['rendiconto', 2], ['millesimi', 3], ['amministratore', 2], ['assemblea', 1.5], ['quota condominiale', 3]],
+  catasto: [['visura catastale', 4.5], ['planimetria', 3], ['rendita catastale', 3.5], ['catasto', 2], ['foglio particella', 3], ['subalterno', 2.5]],
+  veicolo: [['targa', 3], ['libretto di circolazione', 4], ['revisione', 2], ['rca', 2], ['autoveicolo', 2.5], ['bollo auto', 2]],
   certificato: [['dichiarazione di conformita', 4.5], ['attestato di prestazione energetica', 4.5], ['certificato', 2], ['certificazione', 2], ['collaudo', 2], ['conformita', 1]],
 };
-export const KIND_LABEL = { fattura: 'Fattura', ricevuta: 'Ricevuta / scontrino', preventivo: 'Preventivo', contratto: 'Contratto', polizza: 'Polizza assicurativa', bolletta: 'Bolletta / utenza', garanzia: 'Garanzia', manuale: 'Manuale', certificato: 'Certificato / dichiarazione' };
+/** Fornitori riconoscibili per nome (elenco volutamente corto: i nomi sconosciuti restano "ipotesi"). */
+export const KNOWN_PROVIDERS = [
+  ['Enel Energia', /\benel\s+energia\b/i, 'luce'], ['Plenitude', /\bplenitude\b|\beni\s+(?:gas\s+e\s+luce|plenitude)\b/i, 'luce'], ['Edison', /\bedison\b/i, 'luce'], ['A2A', /\ba2a\b/i, 'luce'], ['Sorgenia', /\bsorgenia\b/i, 'luce'],
+  ['Hera Comm', /\bhera\s+comm\b/i, 'luce'], ['Acea', /\bacea\b/i, 'luce'], ['Iren', /\biren\b/i, 'luce'], ['E.ON', /\be\.on\b/i, 'luce'], ['Italgas', /\bitalgas\b/i, 'gas'],
+  ['Abbanoa', /\babbanoa\b/i, 'acqua'], ['TIM', /\btim\b|telecom\s+italia/i, 'internet'], ['Vodafone', /\bvodafone\b/i, 'internet'], ['WindTre', /\bwind\s?tre\b/i, 'telefono'], ['Fastweb', /\bfastweb\b/i, 'internet'], ['Iliad', /\biliad\b/i, 'telefono'], ['Poste Italiane', /\bposte\s+italiane\b/i, 'altro'],
+  ['UnipolSai', /\bunipol(?:sai)?\b/i, 'assicurazione'], ['Generali', /\bgenerali\b/i, 'assicurazione'], ['Allianz', /\ballianz\b/i, 'assicurazione'], ['AXA', /\baxa\b/i, 'assicurazione'], ['Reale Mutua', /\breale\s+mutua\b/i, 'assicurazione'], ['Zurich', /\bzurich\b/i, 'assicurazione'],
+];
+export const SERVICE_RULES = { luce: ['kwh', 'energia elettrica', 'pod', 'potenza impegnata'], gas: ['smc', 'gas naturale', 'pdr', 'metano'], acqua: ['servizio idrico', 'acquedotto', 'fognatura', 'depurazione'], internet: ['fibra', 'adsl', 'internet', 'ftth'], telefono: ['linea mobile', 'sim', 'telefonia'], rifiuti: ['tari', 'tassa rifiuti'] };
+/** Categoria predefinita suggerita (nome come in DEFAULT_CATEGORIES) da tipologia e servizio. */
+export function suggestCategory(kind, service) {
+  if (service === 'rifiuti') return 'Fisco e tributi';
+  if (['luce', 'gas', 'acqua', 'internet', 'telefono'].includes(service)) return 'Utenze';
+  return { bolletta: 'Utenze', polizza: 'Assicurazioni', contratto: 'Contratti', tributo: 'Fisco e tributi', condominio: 'Condominio', garanzia: 'Garanzie e manuali', manuale: 'Garanzie e manuali', veicolo: 'Veicoli', certificato: 'Casa', catasto: 'Casa', fattura: 'Casa', preventivo: 'Casa', ricevuta: 'Casa' }[kind] || '';
+}
+export const EXTRACTOR_VERSION = 2;
+export const KIND_LABEL = { tributo: 'Tributo / F24', condominio: 'Condominio', catasto: 'Catasto / visura', veicolo: 'Veicolo', fattura: 'Fattura', ricevuta: 'Ricevuta / scontrino', preventivo: 'Preventivo', contratto: 'Contratto', polizza: 'Polizza assicurativa', bolletta: 'Bolletta / utenza', garanzia: 'Garanzia', manuale: 'Manuale', certificato: 'Certificato / dichiarazione' };
 
 /** Classificazione per punteggio: restituisce {kind, conf, score} oppure null se nessun indizio sufficiente. */
 export function classify(text) {
@@ -83,7 +102,7 @@ export function classify(text) {
 
 const snip = (line) => String(line).replace(/\s+/g, ' ').trim().slice(0, 140);
 const LABELS = {
-  total: [[/totale\s+da\s+pagare/i, 'high'], [/totale\s+documento/i, 'high'], [/totale\s+fattura/i, 'high'], [/importo\s+totale/i, 'high'], [/totale\s+complessivo/i, 'high'], [/netto\s+a\s+pagare/i, 'high'], [/totale(?!\s+(?:imponibile|iva|imposta|parziale))/i, 'medium']],
+  total: [[/totale\s+da\s+pagare/i, 'high'], [/importo\s+da\s+pagare/i, 'high'], [/totale\s+bolletta/i, 'high'], [/totale\s+da\s+versare/i, 'high'], [/saldo\s+da\s+pagare/i, 'high'], [/totale\s+versament[oi]/i, 'high'], [/totale\s+documento/i, 'high'], [/totale\s+fattura/i, 'high'], [/importo\s+totale/i, 'high'], [/totale\s+complessivo/i, 'high'], [/netto\s+a\s+pagare/i, 'high'], [/totale(?!\s+(?:imponibile|iva|imposta|parziale))/i, 'medium']],
   net: [[/(?:totale\s+)?imponibile/i, 'high']],
   vat: [[/(?:totale\s+)?(?:importo\s+)?\biva\b(?!\s+(?:inclusa|esclusa|compresa))/i, 'medium']],
 };
@@ -164,9 +183,25 @@ export function extractFields(text, ctx = {}) {
     add('issuerVat', 'Partita IVA', vm.m[1], { conf: ok ? 'high' : 'low', snippet: vm.l });
     if (!ok) warnings.push('La partita IVA letta non supera il controllo formale: potrebbe essere stata letta male.');
   }
+  // fornitore noto (nome riconosciuto nel testo) → emittente affidabile e tipo di servizio
+  const known = KNOWN_PROVIDERS.find(([, re]) => re.test(src));
+  let service = known && known[2] !== 'altro' && known[2] !== 'assicurazione' ? known[2] : '';
+  if (!service) { const nt0 = ' ' + norm(src) + ' '; for (const [s, kws] of Object.entries(SERVICE_RULES)) if (kws.some((k) => new RegExp(`(?<![a-z0-9])${k}(?![a-z0-9])`).test(nt0))) { service = s; break; } }
+  if (service && ['bolletta', 'fattura', 'tributo', undefined].includes(cls?.kind)) add('serviceType', 'Tipo di servizio', service, { kind: 'inferred', conf: known ? 'high' : 'medium', snippet: known ? `fornitore ${known[0]}` : 'parole chiave del servizio' });
+  if (known) { const l = lines.find((x) => known[1].test(x)) || ''; add('issuer', 'Emittente / fornitore', known[0], { conf: 'high', snippet: l }); }
+  // periodo di riferimento e identificativi di fornitura
+  for (let i = 0; i < lines.length; i++) {
+    const m = /periodo\s+(?:di\s+)?(?:riferimento|fatturazione|di\s+consumo)?[^\d\n]{0,15}(?:dal\s+)?(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\s*(?:al|-|–)\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})/i.exec(lines[i]);
+    if (m) { const a = findDates(m[1])[0], b = findDates(m[2])[0]; if (a && b && a.iso <= b.iso) { add('periodStart', 'Inizio periodo', a.iso, { conf: 'high', snippet: lines[i] }); add('periodEnd', 'Fine periodo', b.iso, { conf: 'high', snippet: lines[i] }); break; } }
+  }
+  const pod = /\bIT\s?\d{3}\s?E\s?\d{8}\b/i.exec(src); if (pod) add('pod', 'Codice POD', pod[0].replace(/\s/g, '').toUpperCase(), { conf: 'high', snippet: lines.find((l) => l.includes(pod[0])) });
+  const pdr = /\bPDR\s*[:.]?\s*(\d{14})\b/i.exec(src); if (pdr) add('pdr', 'Codice PDR', pdr[1], { conf: 'high', snippet: lines.find((l) => l.includes(pdr[1])) });
+  const plate = /\btarga\s*[:.]?\s*([A-Z]{2}\s?\d{3}\s?[A-Z]{2})\b/i.exec(src); if (plate) add('plate', 'Targa', plate[1].replace(/\s/g, '').toUpperCase(), { conf: 'high', snippet: lines.find((l) => /targa/i.test(l)) });
+  // categoria suggerita
+  const catName = suggestCategory(cls?.kind, service); if (catName && cls && cls.conf !== 'low') add('categoryId', 'Categoria', catName, { kind: 'inferred', conf: 'medium', snippet: 'dedotta dal tipo di documento' });
   // emittente (ipotesi): prima riga con forma societaria, altrimenti la riga che precede la P.IVA
   const co = lines.find((l) => l.length >= 3 && l.length <= 70 && /\b(s\.?r\.?l\.?s?|s\.?p\.?a\.?|s\.?n\.?c\.?|s\.?a\.?s\.?|& c\.?|soc\.? coop)/i.test(l));
-  if (co) add('issuer', 'Emittente / fornitore', co.replace(/\s+/g, ' '), { kind: 'inferred', conf: 'medium', snippet: co });
+  if (get('issuer')) { /* già riconosciuto per nome */ } else if (co) add('issuer', 'Emittente / fornitore', co.replace(/\s+/g, ' '), { kind: 'inferred', conf: 'medium', snippet: co });
   else if (vm && vm.i > 0 && lines[vm.i - 1] && lines[vm.i - 1].length <= 70 && /[a-zà-ù]{3}/i.test(lines[vm.i - 1])) add('issuer', 'Emittente / fornitore', lines[vm.i - 1], { kind: 'inferred', conf: 'low', snippet: lines[vm.i - 1] });
 
   // garanzia e dati tecnici
@@ -210,7 +245,8 @@ export function mergeFields(prev = [], next = []) {
 
 /** Campi → campi di primo livello del documento. Solo per dati confermati o corretti. */
 export const TOP_LEVEL = { docKind: 'docKind', issuer: 'issuer', docNo: 'docNo', date: 'date', expires: 'expires', amount: 'amount', amountNet: 'amountNet', vatAmount: 'vatAmount' };
-export function topLevelPatch(field, properties = []) {
+export function topLevelPatch(field, properties = [], categories = []) {
+  if (field.key === 'categoryId') { const c = categories.find((x) => x.name === field.value); return c ? { categoryId: c.id } : {}; }
   if (field.key === 'propertyId') { const p = properties.find((x) => x.name === field.value); return p ? { propertyId: p.id } : {}; }
   const k = TOP_LEVEL[field.key]; if (!k) return {};
   return { [k]: ['amount', 'amountNet', 'vatAmount'].includes(k) ? Number(field.value) : field.value };

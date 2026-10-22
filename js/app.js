@@ -11,6 +11,10 @@ import * as search from './ui/search.js';
 import * as settings from './ui/settings.js';
 import * as more from './ui/more.js';
 import * as expenses from './ui/expenses.js';
+import * as calendar from './ui/calendar.js';
+import * as inbox from './ui/inbox.js';
+import * as suppliers from './ui/suppliers.js';
+import { upgradeDocuments } from './data/intel.js';
 import { registerSW, setWaitingHandler, applyUpdate } from './app-sw.js';
 import { open as openDB } from './data/db.js';
 
@@ -24,6 +28,9 @@ const ROUTES = {
   money: { tab: 'more', view: (p, c) => (p[0] ? money.detailView(p, c) : money.listView(p, c)) },
   contacts: { tab: 'more', view: (p, c) => (p[0] ? contacts.detailView(p, c) : contacts.listView(p, c)) },
   expenses: { tab: 'more', view: expenses.view },
+  calendar: { tab: 'more', view: calendar.view },
+  inbox: { tab: 'more', view: inbox.view },
+  suppliers: { tab: 'more', view: (p, c) => (p[0] ? suppliers.detailView(p, c) : suppliers.listView(p, c)) },
   settings: { tab: 'more', view: settings.view },
   search: { tab: 'today', view: search.view },
 };
@@ -74,7 +81,11 @@ function boot() {
     clear(banner);
     banner.append(h('div', { class: 'banner info', style: undefined, role: 'status' }, icon('info', 20), h('div', null, h('b', null, 'Aggiornamento disponibile'), h('p', null, 'I tuoi dati non verranno toccati. Applicalo quando non stai modificando nulla.'), h('button', { class: 'btn', type: 'button', onclick: applyUpdate }, 'Aggiorna ora'))));
   });
-  openDB().then(() => render(false), (e) => {
+  openDB().then(async () => {
+    render(false);
+    // dopo un aggiornamento delle regole di lettura: rielabora i documenti già caricati (una volta, additivo, senza riverifiche)
+    try { const u = await upgradeDocuments(); if (u && u.added) { toast(`Domus ha riletto i tuoi ${u.docs} documenti con le nuove regole: ${u.added} nuovi dati da verificare.`, 'ok', 7000); render(true); } } catch { /* non blocca l'avvio */ }
+  }, (e) => {
     clear(main); main.append(h('div', { class: 'banner danger' }, icon('alert', 20), h('div', null, h('b', null, 'Archiviazione non disponibile'), h('p', null, e.message), h('p', null, 'In navigazione privata o con i dati del sito bloccati Domus non può salvare nulla.'))));
   });
   registerSW();
